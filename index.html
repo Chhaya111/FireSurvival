@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fire Survival — No Audio Version</title>
+
+<style>
+  :root {
+     --bg:#8f9396;
+      --panel: rgba(255,255,255,0.12);
+       --ctrl: rgba(0,0,0,0.6); 
+       --accent:#00bcd4; 
+      }
+  body{
+    margin:0;
+    background:var(--bg);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:100vh;
+    font-family:Arial, sans-serif;
+  }
+  #wrap{
+    position:relative;
+    width:100%;
+    max-width:920px;
+    padding:12px;
+    box-sizing:border-box;
+  }
+  canvas{
+    width:100%;
+    height:auto;
+    background:linear-gradient(#cfd6d9,#9aa0a3);
+    display:block;
+    border:6px solid #666;
+    box-shadow:0 12px 30px rgba(0,0,0,0.45);
+    border-radius:6px;
+  }
+  #hud{
+    position:absolute;
+    left:12px;top:12px;
+    background:var(--panel);
+    padding:8px 10px;
+    border-radius:8px;
+    font-size:13px;
+    z-index:40;
+    color:#fff;
+  }
+  #controls{
+    position:absolute;
+    left:50%;
+    transform:translateX(-50%);
+    bottom:14px;
+    display:flex;
+    gap:12px;
+    z-index:45;
+  }
+  .touchBtn{
+    width:90px;
+    height:52px;
+    border-radius:12px;
+    border:none;
+    background:var(--ctrl);
+    color:#fff;
+    font-size:16px;
+    cursor:pointer;
+    box-shadow:0 8px 16px rgba(0,0,0,0.35);
+    user-select:none;
+  }
+  .touchBtn:active{
+    transform:translateY(5px);
+    box-shadow:0 4px 8px rgba(0,0,0,0.3);
+  }
+  #overlay{
+    position:absolute;
+    inset:0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    pointer-events:auto;
+    z-index:60;
+    color:#fff;gap:14px;
+  }
+  #startBtn{
+    padding:14px 20px;
+    border-radius:10px;
+    border:none;
+    background:var(--accent);
+    color:#fff;
+    font-weight:bold;
+    font-size:18px;
+    cursor:pointer;
+    box-shadow:0 10px 20px rgba(0,0,0,0.35);
+  }
+  #winnerScreen{
+    position:absolute;
+    inset:0;
+    background:rgba(0,0,0,0.78);
+    color:#fff;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:28px;
+    font-weight:bold;
+    display:none;
+    z-index:70;
+  }
+  #restart{
+    position:absolute;
+    left:50%;
+    transform:translateX(-50%);
+    bottom:84px;
+    padding:10px 18px;
+    border-radius:10px;
+    border:none;
+    background:#ff3d00;
+    color:#fff;
+    font-weight:bold;
+    cursor:pointer;
+    display:none;
+    z-index:50;
+    box-shadow:0 8px 18px rgba(0,0,0,0.35);
+  }
+  #finalFooter{
+    position:fixed;
+    left:50%;
+    transform:translateX(-50%);
+    bottom:6px;color:#fff;
+    font-weight:700;
+    background:rgba(0,0,0,0.18);
+    padding:6px 10px;
+    border-radius:8px;
+    z-index:999;
+    text-shadow:0 2px 6px rgba(0,0,0,0.45);
+  }
+</style>
+</head>
+
+<body>
+  <div id="wrap">
+    <canvas id="game" width="900" height="520"></canvas>
+
+    <div id="hud">Score: <span id="score">0</span> | High: <span id="high">0</span></div>
+
+    <div id="controls">
+      <button id="upBtn" class="touchBtn">▲ UP</button>
+      <button id="downBtn" class="touchBtn">▼ DOWN</button>
+    </div>
+
+    <button id="restart">Restart</button>
+
+    <div id="overlay">
+      <div>Game Has No Sound Version</div>
+      <button id="startBtn">Tap to Start</button>
+    </div>
+
+    <div id="winnerScreen">🎉 You Win! 🎉</div>
+  </div>
+
+  <div id="finalFooter">Made by Chhaya Gaming</div>
+
+<script>
+/* ===== dom logic ===== */
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const upBtn = document.getElementById('upBtn'), downBtn = document.getElementById('downBtn');
+const overlay = document.getElementById('overlay'), startBtn = document.getElementById('startBtn');
+const restartBtn = document.getElementById('restart'), winnerScreen = document.getElementById('winnerScreen');
+const scoreEl = document.getElementById('score'), highEl = document.getElementById('high');
+
+/* ===== game main state logics ===== */
+const W = canvas.width, H = canvas.height;
+let gameStarted=false, gameOver=false, score=0;
+let high = Number(localStorage.getItem('fire_high')||0); highEl.textContent = high;
+
+let player = { x:110, y: H/2+20, w:40, h:80, vy:0, gravity:0.8, holdingUp:false };
+let fires = [], coins = [], stones = [];
+let spawnTimer = 0;
+
+const coinSize = 35;
+const stoneSize = 35;
+const winScore = 400;
+
+/* ===== all buttons controlls ===== */
+let keys = {}, pressingUp=false, pressingDown=false;
+
+function setupControls(){
+  window.addEventListener('keydown', e=>{
+    if(e.code === 'ArrowUp'){ pressingUp=true; }
+    if(e.code === 'ArrowDown'){ pressingDown=true; }
+  });
+  window.addEventListener('keyup', e=>{
+    if(e.code === 'ArrowUp'){ pressingUp=false; }
+    if(e.code === 'ArrowDown'){ pressingDown=false; }
+  });
+
+  upBtn.addEventListener('mousedown', ()=> pressingUp=true);
+  upBtn.addEventListener('mouseup', ()=> pressingUp=false);
+  downBtn.addEventListener('mousedown', ()=> pressingDown=true);
+  downBtn.addEventListener('mouseup', ()=> pressingDown=false);
+
+  upBtn.addEventListener('touchstart', e=>{ e.preventDefault(); pressingUp=true; });
+  upBtn.addEventListener('touchend', e=>{ e.preventDefault(); pressingUp=false; });
+  downBtn.addEventListener('touchstart', e=>{ e.preventDefault(); pressingDown=true; });
+  downBtn.addEventListener('touchend', e=>{ e.preventDefault(); pressingDown=false; });
+}
+setupControls();
+
+/* ===== swaping and stone code ===== */
+function spawnFire(){
+  const w = 60 + Math.random()*50;
+  const h = 80 + Math.random()*120;
+  fires.push({ x:W+20, w, h, speed:3+Math.random()*2, particles:[] });
+
+  if(Math.random() < 0.75){
+    const cx = W + 20 + w/2;
+    const cy = H - h - 210;
+    coins.push({ x:cx, y:cy, r:coinSize/2, collected:false });
+  }
+
+  if(Math.random() < 0.20){
+    stones.push({
+      x: W + 20 + w/2,
+      y: H - h - 205,
+      size: stoneSize
+    });
+  }
+}
+
+/* ===== draw code ===== */
+function drawPillar(f){
+  const x=f.x, top=H-f.h;
+  const grad = ctx.createLinearGradient(x, top, x, H);
+  grad.addColorStop(0, '#4b2b1a'); 
+  grad.addColorStop(1, '#7b1f00');
+  ctx.fillStyle = grad;
+  ctx.fillRect(x, top, f.w, f.h);
+}
+
+function drawCoin(c){
+  if(c.collected) return;
+  ctx.fillStyle = "gold";
+  ctx.beginPath();
+  ctx.arc(c.x, c.y, c.r, 0, Math.PI*2);
+  ctx.fill();
+}
+
+function drawStone(s){
+  ctx.fillStyle = "#4caf50";
+  ctx.fillRect(s.x - s.size/2, s.y - s.size/2, s.size, s.size);
+}
+
+function drawPlayer(){
+  const p = player;
+  ctx.fillStyle = "yellow";
+  ctx.fillRect(p.x, p.y, p.w, p.h);
+}
+
+/* ===== game start over logics ===== */
+function update(){
+  if(!gameStarted || gameOver) return;
+
+  spawnTimer++;
+  if(spawnTimer > 10){ spawnFire(); spawnTimer = 0; }
+
+  for(const f of fires) f.x -= f.speed;
+  fires = fires.filter(f => f.x + f.w > -50);
+
+  for(const c of coins) c.x -= 3.6;
+  for(const s of stones) s.x -= 3.6;
+
+  if(pressingUp) player.vy = Math.max(player.vy - 0.9, -8);
+  else if(pressingDown) player.vy = Math.min(player.vy + 1.2, 12);
+  else player.vy = Math.min(player.vy + player.gravity, 12);
+
+  player.y += player.vy;
+
+  if(player.y < 6) player.y = 6;
+  if(player.y + player.h > H-6) player.y = H-player.h-6;
+
+  for(const f of fires){
+    if(player.x < f.x + f.w &&
+       player.x + player.w > f.x &&
+       player.y + player.h > H - f.h){
+        triggerGameOver();
+    }
+  }
+
+  for(const c of coins){
+    if(!c.collected){
+      const dx=(player.x+player.w/2)-c.x;
+      const dy=(player.y+player.h/2)-c.y;
+      if(Math.sqrt(dx*dx+dy*dy) < c.r + 25){
+        c.collected=true;
+        score++;
+        scoreEl.textContent=score;
+        if(score>=winScore) triggerWinner();
+      }
+    }
+  }
+
+  for(let i=stones.length-1;i>=0;i--){
+    const s = stones[i];
+    const dx=(player.x+player.w/2)-s.x;
+    const dy=(player.y+player.h/2)-s.y;
+    if(Math.sqrt(dx*dx+dy*dy) < s.size/2 + 25){
+      score+=3;
+      stones.splice(i,1);
+      scoreEl.textContent=score;
+      if(score>=winScore) triggerWinner();
+    }
+  }
+}
+
+/* ===== Game Over ===== */
+function triggerGameOver(){
+  gameOver = true;
+  restartBtn.style.display = "block";
+}
+
+/* ===== Winner ===== */
+function triggerWinner(){
+  gameOver = true;
+  winnerScreen.style.display = "flex";
+  restartBtn.style.display = "block";
+}
+
+/* ===== Draw Loop ===== */
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  for(const f of fires) drawPillar(f);
+  for(const c of coins) drawCoin(c);
+  for(const s of stones) drawStone(s);
+  drawPlayer();
+}
+
+function loop(){
+  update();
+  draw();
+  if(!gameOver) requestAnimationFrame(loop);
+}
+
+/* ===== Start & Restart ===== */
+startBtn.addEventListener('click', ()=>{
+  overlay.style.display = "none";
+  gameStarted = true;
+  requestAnimationFrame(loop);
+});
+
+restartBtn.addEventListener('click', ()=>{
+  location.reload();
+});
+
+/* spawn initial */
+for(let i=0;i<2;i++) spawnFire();
+</script>
+
+</body>
+</html>
